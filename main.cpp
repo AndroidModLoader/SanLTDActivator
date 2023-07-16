@@ -51,11 +51,6 @@ extern "C" void OnModLoad()
     aml->Write(pGTASA + BYVER(0x5A8904, 0x764641) + 0x5, (uintptr_t)"SANFT", 5);
     aml->Write(pGTASA + BYVER(0x61EC30, 0x76128D), (uintptr_t)"SANLTD", 6);
 
-    #ifdef AML32
-    HOOKPLT(AddStandartTexture, pGTASA + 0x6747CC);
-    HOOKPLT(InitialiseRenderWare, pGTASA + 0x66F2D0);
-    #else
-    HOOK(AddStandartTexture, aml->GetSym(hGTASA, "_ZN5CFont18AddStandardTextureEv"));
-    HOOK(InitialiseRenderWare, aml->GetSym(hGTASA, "_ZN5CGame20InitialiseRenderWareEv"));
-    #endif
+    HOOKPLT(AddStandartTexture, pGTASA + BYVER(0x6747CC, 0x846110));
+    HOOKPLT(InitialiseRenderWare, pGTASA + BYVER(0x66F2D0, 0x8432F0));
 }
