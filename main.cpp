@@ -1,11 +1,18 @@
 #include <mod/amlmod.h>
 
-MYMOD(net.rusjj.gtasa.sanltd, GTA:SA SanLTD Activator, 1.0.0, RusJJ)
+MYMOD(net.rusjj.gtasa.sanltd, GTA:SA SanLTD Activator, 1.1, RusJJ)
+
+#ifdef AML32
+    #define BYVER(__for32, __for64) (__for32)
+#else
+    #define BYVER(__for32, __for64) (__for64)
+#endif
 
 struct RwTexture;
 
 void* hGTASA;
 uintptr_t pGTASA;
+
 uintptr_t sanltd_fonts_db;
 uintptr_t pFontSprite[3]; // 0 - font2, 1 - font1, 2 - primary font (CSprite's)
 RwTexture* (*SetSpriteTexture1)(uintptr_t* sprite, const char* texture);
@@ -40,10 +47,15 @@ extern "C" void OnModLoad()
     SET_TO(LoadTextureDB, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime4LoadEPKcb21TextureDatabaseFormat"));
     SET_TO(RegisterTextureDB, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime8RegisterEPS_"));
 
-    aml->Write(pGTASA + 0x2A5C78, (uintptr_t)"SanLTD", 7);
-    aml->Write(pGTASA + 0x5A8904 + 0x5, (uintptr_t)"SANFT", 5);
-    aml->Write(pGTASA + 0x61EC30, (uintptr_t)"SANLTD", 6);
+    aml->Write(pGTASA + BYVER(0x2A5C78, 0x73B13D), (uintptr_t)"SanLTD", 7);
+    aml->Write(pGTASA + BYVER(0x5A8904, 0x764641) + 0x5, (uintptr_t)"SANFT", 5);
+    aml->Write(pGTASA + BYVER(0x61EC30, 0x76128D), (uintptr_t)"SANLTD", 6);
 
+    #ifdef AML32
     HOOKPLT(AddStandartTexture, pGTASA + 0x6747CC);
     HOOKPLT(InitialiseRenderWare, pGTASA + 0x66F2D0);
+    #else
+    HOOK(AddStandartTexture, aml->GetSym(hGTASA, "_ZN5CFont18AddStandardTextureEv"));
+    HOOK(InitialiseRenderWare, aml->GetSym(hGTASA, "_ZN5CGame20InitialiseRenderWareEv"));
+    #endif
 }
