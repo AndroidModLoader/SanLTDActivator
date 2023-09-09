@@ -1,6 +1,6 @@
 #include <mod/amlmod.h>
 
-MYMOD(net.rusjj.gtasa.sanltd, GTA:SA SanLTD Activator, 1.1, RusJJ)
+MYMOD(net.rusjj.gtasa.sanltd, GTA:SA SanLTD Activator, 1.2, RusJJ)
 
 #ifdef AML32
     #define BYVER(__for32, __for64) (__for32)
@@ -9,48 +9,73 @@ MYMOD(net.rusjj.gtasa.sanltd, GTA:SA SanLTD Activator, 1.1, RusJJ)
 #endif
 
 struct RwTexture;
+struct TextureDatabaseRuntime;
 
-void* hGTASA;
 uintptr_t pGTASA;
+void* hGTASA;
 
-uintptr_t sanltd_fonts_db;
-uintptr_t pFontSprite[3]; // 0 - font2, 1 - font1, 2 - primary font (CSprite's)
-RwTexture* (*SetSpriteTexture1)(uintptr_t* sprite, const char* texture);
-RwTexture* (*SetSpriteTexture2)(uintptr_t* sprite, const char* texture, const char* mask);
-uintptr_t (*LoadTextureDB)(const char* dbFile, bool fullLoad, int txdbFormat);
-void (*RegisterTextureDB)(uintptr_t dbPtr);
+TextureDatabaseRuntime* pSanLTDTextureDatabase = NULL;
+RwTexture **pFontTextures; // RwTexture*[3] (originally CSprite[3]), 0 - font2, 1 - font1, 2 - primary font
+
+TextureDatabaseRuntime* (*LoadTextureDB)(const char* dbFilename, bool fullLoad, int txdbFormat);
+void (*RegisterTextureDB)(TextureDatabaseRuntime* dbPtr);
+void (*UnregisterTextureDB)(TextureDatabaseRuntime* dbPtr);
+void (*RwTextureDestroy)(RwTexture* texturePtr);
+int (*GetEntry)(TextureDatabaseRuntime *,char const*, bool*);
+RwTexture* (*GetRWTexture)(TextureDatabaseRuntime *, int);
+
+inline RwTexture* GetTextureFromTexDB(TextureDatabaseRuntime* texdb, const char* name)
+{
+    bool hasSiblings;
+    return GetRWTexture(texdb, GetEntry(texdb, name, &hasSiblings));
+}
+inline void SetFontTexture(RwTexture*& tex, const char* texture, const char* mask) // mask is useless?
+{
+    if(tex != NULL)
+    {
+        RwTextureDestroy(tex);
+        tex = NULL;
+    }
+    if(texture && mask)
+    {
+        tex = GetTextureFromTexDB(pSanLTDTextureDatabase, texture);
+    }
+}
 
 DECL_HOOKv(AddStandartTexture)
 {
     AddStandartTexture();
-    if(pFontSprite[0] != 0 && pFontSprite[1] != 0)
+    if(pFontTextures[0] != NULL && pFontTextures[1] != NULL)
     {
-        SetSpriteTexture2(&pFontSprite[0], "font2_sanltd", "font2m");
-        SetSpriteTexture2(&pFontSprite[1], "font1_sanltd", "font1m");
+        if(!pSanLTDTextureDatabase) pSanLTDTextureDatabase = LoadTextureDB("sanltd_fonts", true, 6);
+        SetFontTexture(pFontTextures[0], "font2_sanltd", "font2m");
+        SetFontTexture(pFontTextures[1], "font1_sanltd", "font1m");
     }
-}
-DECL_HOOKv(InitialiseRenderWare)
-{
-    InitialiseRenderWare();
-    sanltd_fonts_db = LoadTextureDB("sanltd_fonts", false, 5);
-    RegisterTextureDB(sanltd_fonts_db);
 }
 
 extern "C" void OnModLoad()
 {
     pGTASA = aml->GetLib("libGTASA.so");
-    hGTASA = dlopen("libGTASA.so", RTLD_LAZY);
+    hGTASA = aml->GetLibHandle("libGTASA.so");
 
-    SET_TO(pFontSprite, aml->GetSym(hGTASA, "_ZN5CFont6SpriteE"));
-    SET_TO(SetSpriteTexture1, aml->GetSym(hGTASA, "_ZN9CSprite2d10SetTextureEPc"));
-    SET_TO(SetSpriteTexture2, aml->GetSym(hGTASA, "_ZN9CSprite2d10SetTextureEPcS0_"));
-    SET_TO(LoadTextureDB, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime4LoadEPKcb21TextureDatabaseFormat"));
-    SET_TO(RegisterTextureDB, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime8RegisterEPS_"));
+    SET_TO(pFontTextures,       aml->GetSym(hGTASA, "_ZN5CFont6SpriteE"));
+    SET_TO(LoadTextureDB,       aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime4LoadEPKcb21TextureDatabaseFormat"));
+    SET_TO(RegisterTextureDB,   aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime8RegisterEPS_"));
+    SET_TO(UnregisterTextureDB, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime10UnregisterEPS_"));
+    SET_TO(RwTextureDestroy,    aml->GetSym(hGTASA, "_Z16RwTextureDestroyP9RwTexture"));
+    SET_TO(GetEntry,            aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime8GetEntryEPKcRb"));
+    SET_TO(GetRWTexture,        aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime12GetRWTextureEi"));
 
-    aml->Write(pGTASA + BYVER(0x2A5C78, 0x73B13D), (uintptr_t)"SanLTD", 7);
-    aml->Write(pGTASA + BYVER(0x5A8904, 0x764641) + 0x5, (uintptr_t)"SANFT", 5);
-    aml->Write(pGTASA + BYVER(0x61EC30, 0x76128D), (uintptr_t)"SANLTD", 6);
+    if(aml->HasMod("net.rusjj.gtasa.utils"))
+    {
+        aml->Write(pGTASA + BYVER(0x2A5C78, 0x73B13D), "SanLTD", 7);
+    }
+    else
+    {
+        aml->Write(pGTASA + BYVER(0x2A5C78, 0x73B13D), "FEL_RUS", 7);
+    }
+    aml->Write(pGTASA + BYVER(0x5A8904, 0x764641) + 0x5, "SANFT", 5);
+    aml->Write(pGTASA + BYVER(0x61EC30, 0x76128D), "SANLTD", 6);
 
     HOOKPLT(AddStandartTexture, pGTASA + BYVER(0x6747CC, 0x846110));
-    HOOKPLT(InitialiseRenderWare, pGTASA + BYVER(0x66F2D0, 0x8432F0));
 }
